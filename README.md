@@ -1,4 +1,4 @@
-# 🐾 ORYXEYE — Nature Explorer for Kids
+# ORYXEYE — Nature Explorer for Kids
 
 An AI-powered web app where kids upload photos of animals and plants, learn about them, chat with an AI nature guide, and play quizzes.
 
@@ -6,7 +6,7 @@ Built with **React + Node.js + Groq AI + NLP**
 
 ---
 
-## 📦 Requirements
+##  Requirements
 
 Before you start, make sure you have these installed on your computer.
 
@@ -45,7 +45,7 @@ This installs React and everything the frontend needs (all listed in `package.js
 
 ---
 
-## 🔑 Get Your Groq API Key (Free)
+## Get Your Groq API Key (Free)
 
 The app uses Groq to power the AI chatbot, daily challenges, guess game, and quizzes. It is completely free — no credit card needed.
 
@@ -66,7 +66,7 @@ Inside the `server/` folder, create a new file called `.env`:
 GROQ_API_KEY=gsk_your_key_here
 ```
 
-> ⚠️ This file must NEVER be pushed to GitHub.  
+> this file must NEVER be pushed to GitHub.  
 > Make sure your `server/.gitignore` file contains:
 > ```
 > .env
@@ -75,7 +75,7 @@ GROQ_API_KEY=gsk_your_key_here
 
 ---
 
-## 🚀 How to Run
+##  How to Run
 
 You need **two terminals open at the same time** — one for the server and one for the frontend.
 
@@ -88,7 +88,7 @@ node server.js
 
 If everything is working you will see:
 ```
-🐾 ORYXEYE server running on http://localhost:4000
+ ORYXEYE server running on http://localhost:4000
 ```
 
 > If you see an error about the API key, double check your `.env` file is saved correctly inside the `server/` folder.
@@ -103,11 +103,11 @@ npm start
 This will automatically open the app in your browser at:  
 **http://localhost:3000**
 
-> ⚠️ The server (Terminal 1) must be running at all times while using the app. Do not close it.
+>  The server (Terminal 1) must be running at all times while using the app. Do not close it.
 
 ---
 
-## 📁 Important Files — What Each One Does
+##  Important Files — What Each One Does
 
 ### Server files (`server/`)
 
