@@ -47,7 +47,7 @@ export default function GuessPage({ showToast }) {
       ) : game ? (
         <>
           <div className="clues-area">
-            {game.clues.slice(0, clueIndex + 1).map((clue, i) => (
+            {(game.clues || []).slice(0, clueIndex + 1).map((clue, i) => (
               <div key={i} className={`clue-card clue-${i}`}>
                 <span className="clue-num">Clue {i + 1}</span>
                 <p>{clue}</p>
