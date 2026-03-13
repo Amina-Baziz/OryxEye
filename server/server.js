@@ -59,7 +59,7 @@ async function askGroq(systemPrompt, userPrompt) {
       "Authorization": `Bearer ${GROQ_API_KEY}`
     },
     body: JSON.stringify({
-      model: MODEL, temperature: 0.7, max_tokens: 500,
+      model: MODEL, temperature: 0.9, max_tokens: 500,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: userPrompt }
@@ -73,14 +73,17 @@ async function askGroq(systemPrompt, userPrompt) {
 
 // ── ORYX PERSONA ─────────────────────────────────────────────
 const ORYX_PERSONA = `
-You are Oryx, a friendly and enthusiastic nature guide for kids aged 6-12.
-- Always use very simple words a child can understand
-- Keep answers fun, short, and exciting
-- Use 1-2 relevant emojis per response
-- Never use scary, violent, or sad facts
-- If asked a casual greeting like "hi", respond warmly and invite a nature question
-- If asked anything off-topic, say: "I only know about nature! Ask me about animals or plants 🌿"
-- Always end with an encouraging phrase like "Great question!" or "You're a nature explorer!"
+You are Oryx, a friendly and enthusiastic animal guide for kids aged 6-10.
+- Keep responses to 2-3 sentences max — short and punchy. Only go longer if the kid asks for a story.
+- Use simple, fun, and exciting language a child can understand
+- Keep answers short and engaging
+- Use 1-2 relevant emojis naturally — don't force them
+- Avoid scary, violent, or sad facts
+- You love animals and fun stories — be flexible and creative!
+- For greetings, respond warmly and invite a question about animals
+- Only redirect if the topic has absolutely nothing to do with animals or the outdoors
+- Vary your endings every time — never repeat the same phrase twice
+- Always keep responses appropriate for young children — if asked about sensitive or adult topics, gently redirect to a fun animal fact instead
 `;
 
 // ═══════════════════════════════════════════════════════════════
@@ -94,7 +97,7 @@ app.post("/signup", async (req, res) => {
     const exists = await User.findOne({ username });
     if (exists) return res.status(400).json({ error: "Username already taken" });
     await User.create({ username, email, password });
-    res.json({ message: `Account created! Welcome, ${username} 🌿` });
+    res.json({ message: `Account created! Welcome, ${username} 🐾` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -120,7 +123,7 @@ app.post("/save-result", async (req, res) => {
   try {
     await Discovery.create({
       username, name: speciesName, category,
-      emoji: emoji || "🌿",
+      emoji: emoji || "🐾",
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
     });
     await QuizResult.create({ username, category, score: quizScore, total: totalQuestions });
@@ -186,21 +189,27 @@ app.get("/progress/:username", async (req, res) => {
 // 1. CHATBOT
 // ═══════════════════════════════════════════════════════════════
 app.post("/chat", async (req, res) => {
-  const { question } = req.body;
+  const { question, history = [] } = req.body;
   if (!question) return res.status(400).json({ error: "No question provided" });
-  const userPrompt = `
-User: Why do camels have humps?
-Oryx: Camels store fat in their humps, not water! 🐪 Great question!
-
-User: What do butterflies eat?
-Oryx: Butterflies drink nectar from flowers using a long tube called a proboscis! 🦋 You're a nature explorer!
-
-Now answer this:
-User: ${question}
-Oryx:`;
   try {
-    const answer = await askGroq(ORYX_PERSONA, userPrompt);
-    res.json({ answer });
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: MODEL, temperature: 0.9, max_tokens: 500,
+        messages: [
+          { role: "system", content: ORYX_PERSONA },
+          ...history,
+          { role: "user", content: question }
+        ]
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || "Groq API error");
+    res.json({ answer: data.choices[0].message.content.trim() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -210,13 +219,12 @@ Oryx:`;
 // 2. DAILY CHALLENGE
 // ═══════════════════════════════════════════════════════════════
 app.get("/daily", async (req, res) => {
-  const categories     = ["mammal","bird","insect","reptile","fish","plant","tree","marine creature"];
+  const categories     = ["mammal","bird","insect","reptile","fish","amphibian","marine creature","arachnid","crustacean","marsupial"];
   const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-  const randomSeed     = Math.floor(Math.random() * 1000);
+  const randomSeed     = Math.floor(Math.random() * 99999);
   const userPrompt = `
 Today is ${new Date().toDateString()} (seed: ${randomSeed}).
-Pick ONE interesting ${randomCategory} from anywhere in the world.
-Do NOT pick Date Palm, Sea Turtle, or Camel.
+Pick ONE interesting ${randomCategory} from anywhere in the world. Be creative and unexpected — avoid common animals like dog, cat, lion, or elephant.
 You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
 Exactly this structure:
 {"creature":"name","category":"type","emoji":"one emoji","lesson":"3 fun sentences for kids","funFact":"one fun fact","habitat":"where it lives in 3-5 words","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
@@ -232,15 +240,15 @@ Exactly this structure:
 });
 
 // ═══════════════════════════════════════════════════════════════
-// 3. GUESS THE NATURE
+// 3. GUESS THE ANIMAL
 // ═══════════════════════════════════════════════════════════════
 app.get("/guess/new", async (req, res) => {
-  const cats = ["insect","bird","mammal","plant","marine creature","reptile","tree","flower"];
+  const cats = ["insect","bird","mammal","marine creature","reptile","amphibian","arachnid","crustacean","marsupial","deep sea creature"];
   const cat  = cats[Math.floor(Math.random() * cats.length)];
-  const seed = Math.floor(Math.random() * 9999);
+  const seed = Math.floor(Math.random() * 99999);
   const userPrompt = `
 Generate a "Guess What I Am!" game for kids. (seed: ${seed})
-Pick a ${cat} from anywhere in the world. NOT Sea Turtle, Date Palm, or Camel.
+Pick a surprising or unusual ${cat} from anywhere in the world. Avoid common animals.
 You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
 Exactly this structure:
 {"answer":"name","clues":["vague clue","medium clue","easy clue"],"funFact":"fun fact after reveal","emoji":"one emoji"}`;
@@ -265,7 +273,7 @@ app.post("/generate-quiz", async (req, res) => {
 Generate a fun quiz for kids about: ${speciesName} (${category || "wildlife"})
 You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
 Exactly this structure:
-{"speciesName":"${speciesName}","lesson":"3 fun sentences","funFact":"one fun fact","habitat":"3-5 words","diet":"3-5 words","region":"3-5 words","type":"mammal/bird/reptile/plant/fish/insect","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
+{"speciesName":"${speciesName}","lesson":"3 fun sentences","funFact":"one fun fact","habitat":"3-5 words","diet":"3-5 words","region":"3-5 words","type":"mammal/bird/reptile/fish/insect","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
   try {
     let text = await askGroq(ORYX_PERSONA, userPrompt);
     text = text.replace(/```json|```/g, "").trim();
@@ -306,7 +314,7 @@ function cosineSimilarity(text1, text2) {
 }
 
 async function semanticCheck(guess, answer) {
-  const prompt = `Correct answer: "${answer}". Child's guess: "${guess}". Same animal/plant? Reply ONLY "yes" or "no".`;
+  const prompt = `Correct answer: "${answer}". Child's guess: "${guess}". Same animal? Reply ONLY "yes" or "no".`;
   try {
     const r = await askGroq("You are a strict but fair judge.", prompt);
     return r.toLowerCase().includes("yes");
@@ -316,13 +324,28 @@ async function semanticCheck(guess, answer) {
 app.post("/check-guess", async (req, res) => {
   const { guess, answer } = req.body;
   if (!guess || !answer) return res.status(400).json({ error: "Missing guess or answer" });
+
   const stemmedGuess  = tokenizeAndStem(guess);
   const stemmedAnswer = tokenizeAndStem(answer);
   const similarity    = cosineSimilarity(guess, answer);
   const overlap       = stemmedGuess.some(gw => stemmedAnswer.some(aw => aw === gw));
+
   console.log(`🔍 "${guess}" vs "${answer}" — similarity: ${similarity.toFixed(3)}`);
+
+  // Layer 1 — TF-IDF cosine similarity
   if (similarity >= 0.5 || overlap)
     return res.json({ correct: true, method: "tfidf", similarity });
+
+  // Layer 2 — Levenshtein (spelling mistakes)
+  const guessWords  = guess.toLowerCase().split(" ");
+  const answerWords = answer.toLowerCase().split(" ");
+  const closeEnough = guessWords.some(gw =>
+    answerWords.some(aw => natural.LevenshteinDistance(gw, aw) <= 2)
+  );
+  if (closeEnough)
+    return res.json({ correct: true, method: "levenshtein", similarity });
+
+  // Layer 3 — Groq semantic AI fallback
   const semantic = await semanticCheck(guess, answer);
   res.json({ correct: semantic, method: "semantic", similarity });
 });

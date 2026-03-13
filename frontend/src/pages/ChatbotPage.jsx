@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from "react";
 
 export default function ChatbotPage() {
   const [messages, setMessages] = useState([
-    { from: "oryx", text: "Hi! I'm Oryx 🐾 Ask me anything about nature, animals, or plants!" }
+    { from: "oryx", text: "Hi! I'm Oryx 🐾 Ask me anything about animals" }
   ]);
   const [input,   setInput]   = useState("");
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -22,12 +23,18 @@ export default function ChatbotPage() {
       const res  = await fetch("http://localhost:4000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { from: "oryx", text: data.answer || "Hmm, try again! 🌿" }]);
+      const answer = data.answer || "Hmm, try again!";
+      setMessages(prev => [...prev, { from: "oryx", text: answer }]);
+      setHistory(prev => [
+        ...prev,
+        { role: "user",      content: question },
+        { role: "assistant", content: answer   }
+      ]);
     } catch {
-      setMessages(prev => [...prev, { from: "oryx", text: "Oops! Make sure the server is running! 🌿" }]);
+      setMessages(prev => [...prev, { from: "oryx", text: "Oops! Make sure the server is running!" }]);
     } finally {
       setLoading(false);
     }
@@ -62,7 +69,7 @@ export default function ChatbotPage() {
       <div className="chat-input-row">
         <input
           className="chat-input"
-          placeholder="Ask about any animal, plant, or insect..."
+          placeholder="Ask about any animal or insect..."
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleChat()}
