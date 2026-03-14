@@ -12,9 +12,11 @@
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.6",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "mongoose": "^9.3.0",
     "multer": "^2.1.1",
     "natural": "^5.0.4",

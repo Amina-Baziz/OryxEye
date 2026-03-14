@@ -13,24 +13,47 @@ import DashboardPage from "./pages/DashboardPage";
 
 export default function App() {
   const [view,         setView]         = useState("landing");
-  const [appView,      setAppView]      = useState("dashboard");
+  const [appView,      setAppView]      = useState(() => localStorage.getItem("oryxeye_view") || "dashboard");
   const [username,     setUsername]     = useState("");
   const [password,     setPassword]     = useState("");
   const [email,        setEmail]        = useState("");
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [toast,        setToast]        = useState({ message: "", type: "" });
 
-  // Shared progress data (journal + dashboard)
   const [journal,    setJournal]    = useState([]);
   const [dashData,   setDashData]   = useState(null);
   const [dashLoading,setDashLoading]= useState(false);
+
+  // ── RESTORE SESSION ON REFRESH ────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem("oryxeye_user");
+    if (saved) {
+      const user = JSON.parse(saved);
+      setLoggedInUser(user);
+      setView("app");
+      // Load progress immediately
+      setDashLoading(true);
+      fetch(`http://localhost:4000/progress/${user.username}`)
+        .then(r => r.json())
+        .then(data => {
+          setJournal(data.discoveries || []);
+          setDashData(data);
+        })
+        .catch(console.error)
+        .finally(() => setDashLoading(false));
+    }
+  }, []);
+
+  const handleSetAppView = (view) => {
+    setAppView(view);
+    localStorage.setItem("oryxeye_view", view);
+  };
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: "", type: "" }), 3000);
   };
 
-  // Load progress when switching to journal or dashboard
   useEffect(() => {
     if ((appView === "journal" || appView === "dashboard") && loggedInUser) {
       loadProgress();
@@ -61,6 +84,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: loggedInUser.username, speciesName, category, emoji, quizScore, totalQuestions }),
       });
+      loadProgress();
     } catch (err) { console.error("Save error:", err); }
   };
 
@@ -76,6 +100,7 @@ export default function App() {
       const data = await res.json();
       if (data.user) {
         setLoggedInUser(data.user);
+        localStorage.setItem("oryxeye_user", JSON.stringify(data.user));
         setView("app");
         showToast(`Welcome, ${data.user.username}! 🌿`, "success");
       } else {
@@ -100,10 +125,7 @@ export default function App() {
   const handleSignup = async (e) => {
     e.preventDefault();
     const errors = validatePassword(password);
-    if (errors.length > 0) {
-      showToast(errors[0], "error");
-      return;
-    }
+    if (errors.length > 0) { showToast(errors[0], "error"); return; }
     try {
       const res  = await fetch("http://localhost:4000/signup", {
         method: "POST",
@@ -120,15 +142,15 @@ export default function App() {
 
   const handleLogout = () => {
     setLoggedInUser(null);
+    localStorage.removeItem("oryxeye_user");
+    localStorage.removeItem("oryxeye_view");
     setView("login");
     setAppView("dashboard");
     setUsername(""); setPassword("");
   };
 
   // ── LANDING ───────────────────────────────────────────────
-  if (view === "landing") return (
-    <LandingPage toast={toast} setView={setView} />
-  );
+  if (view === "landing") return <LandingPage toast={toast} setView={setView} />;
 
   // ── LOGIN ─────────────────────────────────────────────────
   if (view === "login") return (
@@ -198,11 +220,11 @@ export default function App() {
               {password.length > 0 && (
                 <div className="pwd-rules">
                   {[
-                    { test: password.length >= 8,                    label: "8+ characters" },
-                    { test: /[A-Z]/.test(password),                  label: "Uppercase letter" },
-                    { test: /[a-z]/.test(password),                  label: "Lowercase letter" },
-                    { test: /[0-9]/.test(password),                  label: "Number" },
-                    { test: /[!@#$%^&*()_+\-=]/.test(password),     label: "Special character" },
+                    { test: password.length >= 8,               label: "8+ characters" },
+                    { test: /[A-Z]/.test(password),             label: "Uppercase letter" },
+                    { test: /[a-z]/.test(password),             label: "Lowercase letter" },
+                    { test: /[0-9]/.test(password),             label: "Number" },
+                    { test: /[!@#$%^&*()_+\-=]/.test(password),label: "Special character" },
                   ].map((r, i) => (
                     <div key={i} className={`pwd-rule ${r.test ? "pass" : "fail"}`}>
                       {r.test ? "✅" : "❌"} {r.label}
@@ -238,15 +260,15 @@ export default function App() {
         </div>
       </div>
 
-      <BottomNav active={appView} setView={setAppView} />
+      <BottomNav active={appView} setView={handleSetAppView} />
 
       <div className="app-content">
+        {appView === "dashboard" && <DashboardPage dashData={dashData} dashLoading={dashLoading} />}
         {appView === "upload"    && <DiscoverPage  loggedInUser={loggedInUser} saveResult={saveResult} showToast={showToast} />}
         {appView === "chatbot"   && <ChatbotPage   />}
         {appView === "daily"     && <DailyPage     saveResult={saveResult} showToast={showToast} />}
         {appView === "guess"     && <GuessPage     showToast={showToast} />}
         {appView === "journal"   && <JournalPage   journal={journal} />}
-        {appView === "dashboard" && <DashboardPage dashData={dashData} dashLoading={dashLoading} />}
       </div>
     </div>
   );

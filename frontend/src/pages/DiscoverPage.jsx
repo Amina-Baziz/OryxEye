@@ -6,6 +6,7 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
   const [previewUrl,    setPreviewUrl]    = useState(null);
   const [result,        setResult]        = useState(null);
   const [loading,       setLoading]       = useState(false);
+  const [loadingMsg,    setLoadingMsg]    = useState("");
   const [showQuiz,      setShowQuiz]      = useState(false);
 
   const handleFileChange = (e) => {
@@ -22,15 +23,33 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
     if (!selectedImage) return;
     setLoading(true);
     try {
+      // Step 1 — Classify image
+      setLoadingMsg("🔍 Identifying plant...");
       const formData = new FormData();
       formData.append("image", selectedImage);
-      const res  = await fetch("http://localhost:4000/analyze", { method: "POST", body: formData });
-      const data = await res.json();
-      setResult(data);
-    } catch {
+      const classifyRes  = await fetch("http://localhost:4000/classify", { method: "POST", body: formData });
+      const classifyData = await classifyRes.json();
+      if (!classifyData.results) throw new Error("Classification failed");
+
+      const topResult = classifyData.results[0];
+
+      // Step 2 — Ask GROQ for full info
+      setLoadingMsg("🧠 Learning about it...");
+      const quizRes  = await fetch("http://localhost:4000/generate-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ speciesName: topResult.name, category: "plant" })
+      });
+      const quizData = await quizRes.json();
+
+      setResult({ ...quizData, confidence: topResult.confidence });
+
+    } catch (err) {
+      console.log("Error:", err);
       showToast("Analysis failed — try again!", "error");
     } finally {
       setLoading(false);
+      setLoadingMsg("");
     }
   };
 
@@ -47,32 +66,52 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
         {!showQuiz ? (
           <>
             <div className="species-header">
-              <div className="species-badge">{result.category || "Wildlife"}</div>
+              <div className="species-badge">🌿 Plant</div>
               <div className="species-name">{result.speciesName}</div>
             </div>
+
             <div className="info-grid">
-              <div className="info-tile"><span className="tile-icon">🏠</span>
+              <div className="info-tile">
+                <span className="tile-icon">🏠</span>
                 <div className="tile-label">Habitat</div>
                 <div className="tile-value">{result.habitat || "—"}</div>
               </div>
-              <div className="info-tile"><span className="tile-icon">🍽️</span>
+              <div className="info-tile">
+                <span className="tile-icon">🍽️</span>
                 <div className="tile-label">Diet</div>
                 <div className="tile-value">{result.diet || "—"}</div>
               </div>
-              <div className="info-tile"><span className="tile-icon">📍</span>
+              <div className="info-tile">
+                <span className="tile-icon">📍</span>
                 <div className="tile-label">Region</div>
                 <div className="tile-value">{result.region || "—"}</div>
               </div>
-              <div className="info-tile"><span className="tile-icon">🔬</span>
+              <div className="info-tile">
+                <span className="tile-icon">🔬</span>
                 <div className="tile-label">Type</div>
-                <div className="tile-value">{result.type || "—"}</div>
+                <div className="tile-value">{result.type || "Plant"}</div>
               </div>
             </div>
-            {result.lesson  && <div className="lesson-box"><h4>📖 Fun Lesson</h4><p>{result.lesson}</p></div>}
-            {result.funFact && <div className="fact-box"><h4>🌟 Did You Know?</h4><p>{result.funFact}</p></div>}
+
+            {result.lesson  && (
+              <div className="lesson-box">
+                <h4>📖 Fun Lesson</h4>
+                <p>{result.lesson}</p>
+              </div>
+            )}
+
+            {result.funFact && (
+              <div className="fact-box">
+                <h4>🌟 Did You Know?</h4>
+                <p>{result.funFact}</p>
+              </div>
+            )}
+
             <div className="result-actions">
               {result.quiz && (
-                <button className="btn-quiz" onClick={() => setShowQuiz(true)}>🧩 Take the Quiz!</button>
+                <button className="btn-quiz" onClick={() => setShowQuiz(true)}>
+                  🧩 Take the Quiz!
+                </button>
               )}
               <button className="btn-retry" onClick={reset}>🔄 New Photo</button>
             </div>
@@ -85,7 +124,7 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
             <QuizSection
               quiz={result.quiz}
               onFinish={(score, total) => {
-                saveResult(result.speciesName, result.category, result.emoji || "🌿", score, total);
+                saveResult(result.speciesName, "plant", "🌿", score, total);
                 reset();
               }}
             />
@@ -111,7 +150,7 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
           <img src={previewUrl} alt="Preview" className="preview-img" />
           <button className="btn-analyze" onClick={handleAnalyze} disabled={loading}>
             {loading
-              ? <span className="loading-dots"><span /><span /><span /></span>
+              ? <><span className="loading-dots"><span /><span /><span /></span> {loadingMsg}</>
               : "🧠 Analyze Image!"}
           </button>
           {!loading && (

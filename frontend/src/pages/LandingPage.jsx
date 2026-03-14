@@ -51,7 +51,6 @@ export default function LandingPage({ toast, setView }) {
           ))}
         </div>
         <div className="hero-content">
-          <div className="hero-badge">🇶🇦 Made for Qatar</div>
           <h1 className="hero-title">Discover Nature<br />Around You!</h1>
           <p className="hero-sub">Take photos, learn about animals and plants, play games and become a nature explorer!</p>
           <button className="btn-hero" onClick={() => setView("signup")}>Start Exploring 🚀</button>

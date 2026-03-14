@@ -59,7 +59,7 @@ async function askGroq(systemPrompt, userPrompt) {
       "Authorization": `Bearer ${GROQ_API_KEY}`
     },
     body: JSON.stringify({
-      model: MODEL, temperature: 0.9, max_tokens: 500,
+      model: MODEL, temperature: 0.9, max_tokens: 1000,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: userPrompt }
@@ -73,18 +73,21 @@ async function askGroq(systemPrompt, userPrompt) {
 
 // ── ORYX PERSONA ─────────────────────────────────────────────
 const ORYX_PERSONA = `
-You are Oryx, a friendly and enthusiastic animal guide for kids aged 6-10.
+You are Oryx, a friendly and enthusiastic nature guide for kids aged 6-10.
+- You love both animals AND plants — you're excited about all living things!
 - Keep responses to 2-3 sentences max — short and punchy. Only go longer if the kid asks for a story.
 - Use simple, fun, and exciting language a child can understand
 - Keep answers short and engaging
 - Use 1-2 relevant emojis naturally — don't force them
 - Avoid scary, violent, or sad facts
-- You love animals and fun stories — be flexible and creative!
-- For greetings, respond warmly and invite a question about animals
-- Only redirect if the topic has absolutely nothing to do with animals or the outdoors
+- You love nature, animals, plants and fun stories — be flexible and creative!
+- For greetings, respond warmly and invite a question about nature
+- Only redirect if the topic has absolutely nothing to do with nature or the outdoors
 - Vary your endings every time — never repeat the same phrase twice
-- Always keep responses appropriate for young children — if asked about sensitive or adult topics, gently redirect to a fun animal fact instead
+- Always keep responses appropriate for young children — if asked about sensitive or adult topics, gently redirect to a fun nature fact instead
 `;
+
+const EDUCATOR_SYSTEM = "You are a fun nature guide for kids aged 6-12. Use simple, clear language. Be enthusiastic and make learning feel exciting. Avoid overly scientific terms.";
 
 // ═══════════════════════════════════════════════════════════════
 // AUTH
@@ -128,12 +131,10 @@ app.post("/save-result", async (req, res) => {
     });
     await QuizResult.create({ username, category, score: quizScore, total: totalQuestions });
 
-    // Update streak
     const user      = await User.findOne({ username });
     const today     = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     if (user.streak.lastDate === today) {
-      // already logged today
     } else if (user.streak.lastDate === yesterday) {
       user.streak.count += 1;
       user.streak.lastDate = today;
@@ -194,17 +195,10 @@ app.post("/chat", async (req, res) => {
   try {
     const response = await fetch(GROQ_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_API_KEY}`
-      },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: MODEL, temperature: 0.9, max_tokens: 500,
-        messages: [
-          { role: "system", content: ORYX_PERSONA },
-          ...history,
-          { role: "user", content: question }
-        ]
+        model: MODEL, temperature: 0.9, max_tokens: 1000,
+        messages: [{ role: "system", content: ORYX_PERSONA }, ...history, { role: "user", content: question }]
       })
     });
     const data = await response.json();
@@ -219,15 +213,23 @@ app.post("/chat", async (req, res) => {
 // 2. DAILY CHALLENGE
 // ═══════════════════════════════════════════════════════════════
 app.get("/daily", async (req, res) => {
-  const categories     = ["mammal","bird","insect","reptile","fish","amphibian","marine creature","arachnid","crustacean","marsupial"];
+  const animalCats = ["mammal","bird","insect","reptile","fish","amphibian","marine creature","arachnid","crustacean","marsupial"];
+  const plantCats  = ["flowering plant","fruit tree","tropical plant","desert plant","aquatic plant","herb","shrub","vine"];
+  
+  // Randomly pick plant or animal
+  const isPlant      = Math.random() > 0.5;
+  const categories   = isPlant ? plantCats : animalCats;
   const randomCategory = categories[Math.floor(Math.random() * categories.length)];
   const randomSeed     = Math.floor(Math.random() * 99999);
+  const type           = isPlant ? "plant" : "animal";
+
   const userPrompt = `
 Today is ${new Date().toDateString()} (seed: ${randomSeed}).
-Pick ONE interesting ${randomCategory} from anywhere in the world. Be creative and unexpected — avoid common animals like dog, cat, lion, or elephant.
+Pick ONE interesting ${randomCategory} from anywhere in the world. Be creative and unexpected.
 You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
 Exactly this structure:
-{"creature":"name","category":"type","emoji":"one emoji","lesson":"3 fun sentences for kids","funFact":"one fun fact","habitat":"where it lives in 3-5 words","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
+{"creature":"name","category":"${type}","emoji":"one emoji","lesson":"3 fun sentences for kids about this ${type}","funFact":"one fun fact","habitat":"where it lives or grows in 3-5 words","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
+
   try {
     let text = await askGroq(ORYX_PERSONA, userPrompt);
     text = text.replace(/```json|```/g, "").trim();
@@ -243,39 +245,68 @@ Exactly this structure:
 // 3. GUESS THE ANIMAL
 // ═══════════════════════════════════════════════════════════════
 app.get("/guess/new", async (req, res) => {
-  const cats = ["insect","bird","mammal","marine creature","reptile","amphibian","arachnid","crustacean","marsupial","deep sea creature"];
-  const cat  = cats[Math.floor(Math.random() * cats.length)];
+  const categories = ["insect","bird","mammal","marine creature","reptile","amphibian","marsupial"];
+  const cat  = categories[Math.floor(Math.random() * categories.length)];
   const seed = Math.floor(Math.random() * 99999);
+  
   const userPrompt = `
-Generate a "Guess What I Am!" game for kids. (seed: ${seed})
-Pick a surprising or unusual ${cat} from anywhere in the world. Avoid common animals.
-You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
+Generate a "Guess What I Am!" game for kids aged 6-12. (seed: ${seed})
+Pick a DIFFERENT well-known ${cat} every time based on the seed number. 
+The animal must be something a 6-year-old would know.
+You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation.
 Exactly this structure:
-{"answer":"name","clues":["vague clue","medium clue","easy clue"],"funFact":"fun fact after reveal","emoji":"one emoji"}`;
+{"answer":"animal name","clues":["one obvious physical feature","where it lives or what it eats","a very well-known fact about it"],"funFact":"one fun fact after reveal","emoji":"one emoji"}`;
+
   try {
-    let text = await askGroq(ORYX_PERSONA, userPrompt);
+    const response = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: MODEL, temperature: 0.6, max_tokens: 300,
+        messages: [{ role: "system", content: ORYX_PERSONA }, { role: "user", content: userPrompt }]
+      })
+    });
+    const data = await response.json();
+    let text = data.choices[0].message.content.trim();
     text = text.replace(/```json|```/g, "").trim();
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found in response");
+    if (!match) throw new Error("No JSON found");
     res.json(JSON.parse(match[0]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
 // ═══════════════════════════════════════════════════════════════
 // 4. GENERATE QUIZ
 // ═══════════════════════════════════════════════════════════════
 app.post("/generate-quiz", async (req, res) => {
   const { speciesName, category } = req.body;
   if (!speciesName) return res.status(400).json({ error: "No species provided" });
-  const userPrompt = `
+
+  const isPlant  = category === "plant";
+  const isAnimal = category === "animal";
+
+  const systemPrompt = (isPlant || isAnimal) ? EDUCATOR_SYSTEM : ORYX_PERSONA;
+
+const userPrompt = isPlant ? `
+Generate fun and educational plant information for kids aged 6-10 about: ${speciesName}
+You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation.
+Exactly this structure:
+{"speciesName":"${speciesName}","lesson":"3 sentences — what this plant looks like, how it grows, and one cool thing it does in nature","funFact":"one wow-worthy fact that would surprise a kid","habitat":"where it naturally grows in 5-7 words","diet":"what it needs to survive e.g. sunlight, water, minerals","region":"where it originally comes from in 5-7 words","type":"simple plant type e.g. fruit tree, flowering herb, tropical shrub","quiz":[{"question":"fun educational q1","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q2","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q3","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q4","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q5","options":["A","B","C","D"],"answer":"correct"}]}`
+
+  : isAnimal ? `
+Generate fun and educational animal information for kids aged 6-10 about: ${speciesName}
+You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation.
+Exactly this structure:
+{"speciesName":"${speciesName}","lesson":"3 sentences — what this animal looks like, how it behaves, and one cool thing about how it survives","funFact":"one wow-worthy fact that would surprise a kid","habitat":"specific ecosystem in 5-7 words","diet":"what it eats in 5-7 words","region":"where it lives in 5-7 words","type":"animal type e.g. apex predator, migratory bird, nocturnal mammal","quiz":[{"question":"fun educational q1","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q2","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q3","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q4","options":["A","B","C","D"],"answer":"correct"},{"question":"fun educational q5","options":["A","B","C","D"],"answer":"correct"}]}`
+
+  : `
 Generate a fun quiz for kids about: ${speciesName} (${category || "wildlife"})
-You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
+You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation.
 Exactly this structure:
 {"speciesName":"${speciesName}","lesson":"3 fun sentences","funFact":"one fun fact","habitat":"3-5 words","diet":"3-5 words","region":"3-5 words","type":"mammal/bird/reptile/fish/insect","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
   try {
-    let text = await askGroq(ORYX_PERSONA, userPrompt);
+    let text = await askGroq(systemPrompt, userPrompt);
     text = text.replace(/```json|```/g, "").trim();
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No JSON found in response");
@@ -332,11 +363,9 @@ app.post("/check-guess", async (req, res) => {
 
   console.log(`🔍 "${guess}" vs "${answer}" — similarity: ${similarity.toFixed(3)}`);
 
-  // Layer 1 — TF-IDF cosine similarity
   if (similarity >= 0.5 || overlap)
     return res.json({ correct: true, method: "tfidf", similarity });
 
-  // Layer 2 — Levenshtein (spelling mistakes)
   const guessWords  = guess.toLowerCase().split(" ");
   const answerWords = answer.toLowerCase().split(" ");
   const closeEnough = guessWords.some(gw =>
@@ -345,7 +374,6 @@ app.post("/check-guess", async (req, res) => {
   if (closeEnough)
     return res.json({ correct: true, method: "levenshtein", similarity });
 
-  // Layer 3 — Groq semantic AI fallback
   const semantic = await semanticCheck(guess, answer);
   res.json({ correct: semantic, method: "semantic", similarity });
 });
@@ -354,6 +382,32 @@ app.post("/check-guess", async (req, res) => {
 // 6. HEALTH CHECK
 // ═══════════════════════════════════════════════════════════════
 app.get("/", (req, res) => res.json({ status: "ORYXEYE server running 🐾", model: MODEL }));
+
+// ═══════════════════════════════════════════════════════════════
+// 7. CLASSIFY IMAGE
+// ═══════════════════════════════════════════════════════════════
+const multer   = require("multer");
+const FormData = require("form-data");
+const upload   = multer({ storage: multer.memoryStorage() });
+
+app.post("/classify", upload.single("image"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No image provided" });
+  try {
+    const axios = require("axios");
+    const form  = new FormData();
+    form.append("image", req.file.buffer, {
+      filename:    req.file.originalname || "image.jpg",
+      contentType: req.file.mimetype     || "image/jpeg",
+      knownLength: req.file.buffer.length
+    });
+    const response = await axios.post("http://localhost:5001/classify", form, {
+      headers: form.getHeaders()
+    });
+    res.json(response.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const PORT = 4000;
 app.listen(PORT, () => console.log(`🐾 ORYXEYE server running on http://localhost:${PORT}`));
