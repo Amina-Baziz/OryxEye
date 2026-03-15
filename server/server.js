@@ -42,6 +42,12 @@ const quizResultSchema = new mongoose.Schema({
   date:     { type: Date, default: Date.now }
 });
 
+const shownCreatureSchema = new mongoose.Schema({
+  name:     { type: String, required: true },
+  shownAt:  { type: Date, default: Date.now }
+});
+
+const ShownCreature = mongoose.model("ShownCreature", shownCreatureSchema);
 const User       = mongoose.model("User",       userSchema);
 const Discovery  = mongoose.model("Discovery",  discoverySchema);
 const QuizResult = mongoose.model("QuizResult", quizResultSchema);
@@ -213,29 +219,49 @@ app.post("/chat", async (req, res) => {
 // 2. DAILY CHALLENGE
 // ═══════════════════════════════════════════════════════════════
 app.get("/daily", async (req, res) => {
+  const { username } = req.query;
   const animalCats = ["mammal","bird","insect","reptile","fish","amphibian","marine creature","arachnid","crustacean","marsupial"];
   const plantCats  = ["flowering plant","fruit tree","tropical plant","desert plant","aquatic plant","herb","shrub","vine"];
-  
-  // Randomly pick plant or animal
-  const isPlant      = Math.random() > 0.5;
-  const categories   = isPlant ? plantCats : animalCats;
+
+  const isPlant        = Math.random() > 0.5;
+  const categories     = isPlant ? plantCats : animalCats;
   const randomCategory = categories[Math.floor(Math.random() * categories.length)];
   const randomSeed     = Math.floor(Math.random() * 99999);
   const type           = isPlant ? "plant" : "animal";
 
-  const userPrompt = `
+  try {
+    // Get past discoveries for cumulative quiz
+    let pastCreatures = [];
+    if (username) {
+      const discoveries = await Discovery.find({ username }).sort({ createdAt: -1 }).limit(5);
+      pastCreatures = discoveries.map(d => d.name).filter(Boolean);
+    }
+    const hasPast  = pastCreatures.length > 0;
+    const pastList = hasPast ? pastCreatures.join(", ") : "";
+
+    // Get already-shown creatures to avoid repeats
+    const shown      = await ShownCreature.find({}).select("name");
+    const shownNames = shown.map(s => s.name.toLowerCase());
+    const excludeList = shownNames.length > 0
+      ? `Do NOT pick any of these already-shown creatures: ${shownNames.join(", ")}.`
+      : "";
+
+    const userPrompt = `
 Today is ${new Date().toDateString()} (seed: ${randomSeed}).
 Pick ONE interesting ${randomCategory} from anywhere in the world. Be creative and unexpected.
+${excludeList}
 You MUST return ONLY a raw JSON object. No markdown, no backticks, no explanation, no extra text before or after.
+${hasPast ? `The kid has previously learned about: ${pastList}. Mix 2 quiz questions about those past creatures and 3 about the new creature.` : "Generate 5 quiz questions about the new creature."}
 Exactly this structure:
 {"creature":"name","category":"${type}","emoji":"one emoji","lesson":"3 fun sentences for kids about this ${type}","funFact":"one fun fact","habitat":"where it lives or grows in 3-5 words","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
 
-  try {
     let text = await askGroq(ORYX_PERSONA, userPrompt);
     text = text.replace(/```json|```/g, "").trim();
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No JSON found in response");
-    res.json(JSON.parse(match[0]));
+    const parsed = JSON.parse(match[0]);
+    await ShownCreature.create({ name: parsed.creature });
+    res.json(parsed);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

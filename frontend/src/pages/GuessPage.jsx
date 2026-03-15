@@ -54,6 +54,21 @@ export default function GuessPage({ showToast }) {
   return (
     <div className="guess-card">
       <h2 className="guess-title">Guess What I Am!</h2>
+      {game && !loading && (
+        <div style={{
+          textAlign: "center",
+          fontSize: "16px",
+          fontWeight: "700",
+          color: "#0a9d8a",
+          marginBottom: "16px",
+          padding: "10px 16px",
+          background: "linear-gradient(135deg, #e0f7f4, #f0fff4)",
+          borderRadius: "12px",
+          border: "2px solid #b2dfdb"
+        }}>
+          {game.question || "Can you guess what I am?"}
+        </div>
+      )}
 
       {loading ? (
         <div className="center-loading">
