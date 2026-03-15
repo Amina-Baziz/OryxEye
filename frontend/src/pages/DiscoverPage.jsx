@@ -3,11 +3,13 @@ import QuizSection from "../components/QuizSection";
 
 export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
   const [selectedImage, setSelectedImage] = useState(null);
+
   const [previewUrl,    setPreviewUrl]    = useState(null);
   const [result,        setResult]        = useState(null);
   const [loading,       setLoading]       = useState(false);
   const [loadingMsg,    setLoadingMsg]    = useState("");
   const [showQuiz,      setShowQuiz]      = useState(false);
+  const [resultType,    setResultType]    = useState("plant");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -24,7 +26,7 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
     setLoading(true);
     try {
       // Step 1 — Classify image
-      setLoadingMsg("🔍 Identifying plant...");
+      setLoadingMsg("🔍 Identifying...");
       const formData = new FormData();
       formData.append("image", selectedImage);
       const classifyRes  = await fetch("http://localhost:4000/classify", { method: "POST", body: formData });
@@ -32,17 +34,19 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
       if (!classifyData.results) throw new Error("Classification failed");
 
       const topResult = classifyData.results[0];
+      const category  = classifyData.type; // "plant" or "animal"
+      setResultType(category);
 
       // Step 2 — Ask GROQ for full info
       setLoadingMsg("🧠 Learning about it...");
       const quizRes  = await fetch("http://localhost:4000/generate-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ speciesName: topResult.name, category: "plant" })
+        body: JSON.stringify({ speciesName: topResult.name, category })
       });
       const quizData = await quizRes.json();
 
-      setResult({ ...quizData, confidence: topResult.confidence });
+      setResult({ ...quizData, confidence: topResult.confidence, detectedType: category });
 
     } catch (err) {
       console.log("Error:", err);
@@ -61,12 +65,16 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
   };
 
   if (result) {
+    const isAnimal = result.detectedType === "animal";
+    const badge    = isAnimal ? "🐾 Animal" : "🌿 Plant";
+    const emoji    = isAnimal ? "🐾" : "🌿";
+
     return (
       <div className="result-card">
         {!showQuiz ? (
           <>
             <div className="species-header">
-              <div className="species-badge">🌿 Plant</div>
+              <div className="species-badge">{badge}</div>
               <div className="species-name">{result.speciesName}</div>
             </div>
 
@@ -77,8 +85,8 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
                 <div className="tile-value">{result.habitat || "—"}</div>
               </div>
               <div className="info-tile">
-                <span className="tile-icon">🍽️</span>
-                <div className="tile-label">Diet</div>
+                <span className="tile-icon">{isAnimal ? "🍖" : "🍽️"}</span>
+                <div className="tile-label">{isAnimal ? "Diet" : "Nutrients"}</div>
                 <div className="tile-value">{result.diet || "—"}</div>
               </div>
               <div className="info-tile">
@@ -89,11 +97,11 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
               <div className="info-tile">
                 <span className="tile-icon">🔬</span>
                 <div className="tile-label">Type</div>
-                <div className="tile-value">{result.type || "Plant"}</div>
+                <div className="tile-value">{result.type || (isAnimal ? "Animal" : "Plant")}</div>
               </div>
             </div>
 
-            {result.lesson  && (
+            {result.lesson && (
               <div className="lesson-box">
                 <h4>📖 Fun Lesson</h4>
                 <p>{result.lesson}</p>
@@ -124,7 +132,7 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
             <QuizSection
               quiz={result.quiz}
               onFinish={(score, total) => {
-                saveResult(result.speciesName, "plant", "🌿", score, total);
+                saveResult(result.speciesName, result.detectedType, emoji, score, total);
                 reset();
               }}
             />
@@ -148,6 +156,9 @@ export default function DiscoverPage({ loggedInUser, saveResult, showToast }) {
       ) : (
         <>
           <img src={previewUrl} alt="Preview" className="preview-img" />
+          <p style={{ color: "#ff8f00", fontSize: "20px", textAlign: "center", marginTop: -8 }}>
+            💡 Best results with one animal or plant at a time!
+          </p>
           <button className="btn-analyze" onClick={handleAnalyze} disabled={loading}>
             {loading
               ? <><span className="loading-dots"><span /><span /><span /></span> {loadingMsg}</>
