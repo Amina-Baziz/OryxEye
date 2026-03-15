@@ -84,7 +84,7 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: loggedInUser.username, speciesName, category, emoji, quizScore, totalQuestions }),
       });
-      loadProgress();
+      await loadProgress();
     } catch (err) { console.error("Save error:", err); }
   };
 
