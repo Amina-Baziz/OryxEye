@@ -2,9 +2,7 @@
 
 An AI-powered educational web app where children upload photos of animals and plants, learn about them through an AI nature guide, play quizzes, and track their discoveries.
 
-Built as a university capstone project, OryxEye combines computer vision (EfficientNetV2S), natural language processing, and generative AI to make nature education interactive and engaging for young learners.
-
-**Tech Stack:** React · Node.js · Python · Flask · Groq AI · TensorFlow · NLP (natural)
+**Tech Stack:** React · Node.js · Python · Flask · Groq AI · TensorFlow · MongoDB Atlas · NLP (natural)
 
 ---
 
@@ -35,7 +33,7 @@ cd path\to\OryxEye
 
 This will install all Node.js and Python packages automatically. After it finishes, skip to the [How to Run](#how-to-run) section.
 
-> ⚠️ Windows only. Mac/Linux users should follow the manual steps below.
+>  Windows only. Mac/Linux users should follow the manual steps below.
 
 ---
 
@@ -58,28 +56,39 @@ To check if you already have it:
 python --version
 ```
 
-### 3. Install server packages
+### 3. MongoDB Atlas (Free)
+The app uses MongoDB Atlas as its online database — no local MongoDB installation needed.
+
+1. Go to: https://mongodb.com/atlas
+2. Sign up for a free account
+3. Create a free shared cluster (M0 tier)
+4. Under **Database Access**, create a database user with a username and password
+5. Under **Network Access**, click "Allow Access from Anywhere"
+6. Click **Connect** → **Drivers** → copy your connection string
+
+### 4. Install server packages
 Open a terminal, go into the server folder, and run:
 ```
 cd server
-npm install express cors dotenv natural
+npm install express cors dotenv natural mongoose mongodb
 ```
 This installs:
 - **express** — the web server framework
 - **cors** — allows the frontend to talk to the backend
-- **dotenv** — loads your secret API key from the `.env` file
+- **dotenv** — loads your secret keys from the `.env` file
 - **natural** — NLP library used for the Guess game (tokenizer, stemmer, TF-IDF)
+- **mongoose / mongodb** — MongoDB database driver and ODM
 
-### 4. Install frontend packages
+### 5. Install frontend packages
 ```
 cd frontend
 npm install
 ```
 This installs React and everything the frontend needs (all listed in `package.json`).
 
-### 5. Install Python dependencies
+### 6. Install Python dependencies
 ```
-cd ml_models
+cd CNN
 pip install flask tensorflow pillow numpy
 ```
 This installs:
@@ -108,9 +117,10 @@ Click Sign Up and create a free account.
 Inside the `server/` folder, create a new file called `.env`:
 ```
 GROQ_API_KEY=gsk_your_key_here
+MONGODB_URI=mongodb://username:password@your-cluster-url/test
 ```
-> ⚠️ This file must **NEVER** be pushed to GitHub.  
-> Make sure your `server/.gitignore` file contains:
+>  This file must **NEVER** be pushed to GitHub.  
+> Make sure your `.gitignore` file contains:
 > ```
 > .env
 > node_modules/
@@ -141,8 +151,9 @@ node server.js
 You should see:
 ```
 ORYXEYE server running on http://localhost:4000
+MongoDB connected!
 ```
-If you see an error about the API key, double check your `.env` file is saved correctly inside the `server/` folder.
+If you see an error about the API key, double check your `.env` file is saved correctly inside the `server/` folder. If you see a MongoDB error, verify your connection string and that your IP is allowed in Atlas Network Access.
 
 ### Terminal 3 — Start the Frontend
 ```
@@ -173,8 +184,8 @@ This will automatically open the app in your browser at:
 | File | What it does |
 |------|--------------|
 | `server.js` | The main backend file. Contains all API endpoints — chat, daily challenge, guess game, NLP checker, quiz generation, user auth, and progress tracking. |
-| `.env` | Stores your secret Groq API key. Never share or push this file. |
-| `.env.example` | A safe template showing what `.env` should look like. This one CAN be pushed to GitHub. |
+| `.env` | Stores your secret Groq API key and MongoDB connection string. Never share or push this file. |
+| `.env.example` | A safe template showing what `.env` should look like (Groq key + MongoDB URI). This one CAN be pushed to GitHub. |
 | `.gitignore` | Tells Git which files to ignore. Must include `.env` and `node_modules/`. |
 
 ### Frontend files (frontend/src/)
