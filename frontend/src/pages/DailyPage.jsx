@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import QuizSection from "../components/QuizSection";
 
-export default function DailyPage({ saveResult, showToast }) {
+export default function DailyPage({ loggedInUser, saveResult, showToast }) {
   const [daily,      setDaily]      = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [showQuiz,   setShowQuiz]   = useState(false);
@@ -59,7 +59,7 @@ export default function DailyPage({ saveResult, showToast }) {
     setShowQuiz(false);
     setImage(null);
     try {
-      const res  = await fetch("http://localhost:4000/daily");
+      const res  = await fetch(`http://localhost:4000/daily?username=${loggedInUser}`);
       const data = await res.json();
       setDaily(data);
       fetchWikiImage(data.creature);

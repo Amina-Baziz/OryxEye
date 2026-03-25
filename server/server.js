@@ -65,7 +65,7 @@ async function askGroq(systemPrompt, userPrompt) {
       "Authorization": `Bearer ${GROQ_API_KEY}`
     },
     body: JSON.stringify({
-      model: MODEL, temperature: 0.9, max_tokens: 1000,
+      model: MODEL, temperature: 0.9, max_tokens: 1500,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user",   content: userPrompt }
@@ -75,6 +75,41 @@ async function askGroq(systemPrompt, userPrompt) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error?.message || "Groq API error");
   return data.choices[0].message.content.trim();
+}
+
+// ── SAFE JSON PARSER (fixes common LLM output issues) ────────
+function safeParseLLMJson(raw) {
+  // Strip markdown fences
+  let text = raw.replace(/```json|```/g, "").trim();
+
+  // Extract the JSON object
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON found in response");
+
+  let jsonStr = match[0];
+
+  // Fix trailing commas before ] or } (most common LLM mistake)
+  jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
+
+  // Fix unescaped newlines inside string values
+  jsonStr = jsonStr.replace(/(?<=:\s*"[^"]*)\n([^"]*")/g, "\\n$1");
+
+  // Fix single quotes used instead of double quotes (but not inside strings)
+  // Only do this if standard parse fails
+  try {
+    return JSON.parse(jsonStr);
+  } catch (firstError) {
+    try {
+      // Try replacing single-quoted keys/values
+      const fixed = jsonStr
+        .replace(/'/g, '"')
+        .replace(/,\s*([}\]])/g, "$1");
+      return JSON.parse(fixed);
+    } catch (secondError) {
+      console.error("❌ JSON parse failed. Raw text:\n", raw.substring(0, 500));
+      throw new Error(`Invalid JSON from LLM: ${firstError.message}`);
+    }
+  }
 }
 
 // ── ORYX PERSONA ─────────────────────────────────────────────
@@ -88,7 +123,7 @@ You are Oryx, a friendly and enthusiastic nature guide for kids aged 6-10.
 - Avoid scary, violent, or sad facts
 - You love nature, animals, plants and fun stories — be flexible and creative!
 - For greetings, respond warmly and invite a question about nature
-- Only redirect if the topic has absolutely nothing to do with nature or the outdoors
+- If asked anything unrelated to nature, animals, or plants, gently say "I only know about nature!" and suggest a nature question
 - Vary your endings every time — never repeat the same phrase twice
 - Always keep responses appropriate for young children — if asked about sensitive or adult topics, gently redirect to a fun nature fact instead
 `;
@@ -240,7 +275,7 @@ app.get("/daily", async (req, res) => {
     const pastList = hasPast ? pastCreatures.join(", ") : "";
 
     // Get already-shown creatures to avoid repeats
-    const shown      = await ShownCreature.find({}).select("name");
+    const shown      = await ShownCreature.find({}).sort({ shownAt: -1 }).limit(50).select("name");
     const shownNames = shown.map(s => s.name.toLowerCase());
     const excludeList = shownNames.length > 0
       ? `Do NOT pick any of these already-shown creatures: ${shownNames.join(", ")}.`
@@ -256,13 +291,22 @@ Exactly this structure:
 {"creature":"name","category":"${type}","emoji":"one emoji","lesson":"3 fun sentences for kids about this ${type}","funFact":"one fun fact","habitat":"where it lives or grows in 3-5 words","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
 
     let text = await askGroq(ORYX_PERSONA, userPrompt);
-    text = text.replace(/```json|```/g, "").trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found in response");
-    const parsed = JSON.parse(match[0]);
+    const parsed = safeParseLLMJson(text);
+
+    // Validate the quiz array exists and has the right shape
+    if (!parsed.quiz || !Array.isArray(parsed.quiz) || parsed.quiz.length === 0) {
+      throw new Error("LLM response missing valid quiz array");
+    }
+    // Ensure every quiz item has required fields
+    parsed.quiz = parsed.quiz.filter(q => q.question && q.options && q.answer);
+    if (parsed.quiz.length === 0) {
+      throw new Error("No valid quiz questions after filtering");
+    }
+
     await ShownCreature.create({ name: parsed.creature });
     res.json(parsed);
   } catch (err) {
+    console.error("❌ /daily error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -294,14 +338,14 @@ Exactly this structure:
     });
     const data = await response.json();
     let text = data.choices[0].message.content.trim();
-    text = text.replace(/```json|```/g, "").trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found");
-    res.json(JSON.parse(match[0]));
+    const parsed = safeParseLLMJson(text);
+    res.json(parsed);
   } catch (err) {
+    console.error("❌ /guess/new error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 // ═══════════════════════════════════════════════════════════════
 // 4. GENERATE QUIZ
 // ═══════════════════════════════════════════════════════════════
@@ -333,11 +377,20 @@ Exactly this structure:
 {"speciesName":"${speciesName}","lesson":"3 fun sentences","funFact":"one fun fact","habitat":"3-5 words","diet":"3-5 words","region":"3-5 words","type":"mammal/bird/reptile/fish/insect","quiz":[{"question":"q1","options":["A","B","C","D"],"answer":"correct"},{"question":"q2","options":["A","B","C","D"],"answer":"correct"},{"question":"q3","options":["A","B","C","D"],"answer":"correct"},{"question":"q4","options":["A","B","C","D"],"answer":"correct"},{"question":"q5","options":["A","B","C","D"],"answer":"correct"}]}`;
   try {
     let text = await askGroq(systemPrompt, userPrompt);
-    text = text.replace(/```json|```/g, "").trim();
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("No JSON found in response");
-    res.json(JSON.parse(match[0]));
+    const parsed = safeParseLLMJson(text);
+
+    // Validate quiz array
+    if (!parsed.quiz || !Array.isArray(parsed.quiz) || parsed.quiz.length === 0) {
+      throw new Error("LLM response missing valid quiz array");
+    }
+    parsed.quiz = parsed.quiz.filter(q => q.question && q.options && q.answer);
+    if (parsed.quiz.length === 0) {
+      throw new Error("No valid quiz questions after filtering");
+    }
+
+    res.json(parsed);
   } catch (err) {
+    console.error("❌ /generate-quiz error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

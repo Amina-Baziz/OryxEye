@@ -266,7 +266,7 @@ export default function App() {
         {appView === "dashboard" && <DashboardPage dashData={dashData} dashLoading={dashLoading} />}
         {appView === "upload"    && <DiscoverPage  loggedInUser={loggedInUser} saveResult={saveResult} showToast={showToast} />}
         {appView === "chatbot"   && <ChatbotPage   />}
-        {appView === "daily"     && <DailyPage     saveResult={saveResult} showToast={showToast} />}
+        {appView === "daily"     && <DailyPage loggedInUser={loggedInUser?.username} saveResult={saveResult} showToast={showToast} />}
         {appView === "guess"     && <GuessPage     showToast={showToast} />}
         {appView === "journal"   && <JournalPage   journal={journal} />}
       </div>
