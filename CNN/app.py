@@ -15,7 +15,7 @@ plant_model = tf.keras.models.load_model('plant_model_fewshot.keras')
 with open('plant_labels.json', 'r') as f:
     plant_class_labels = json.load(f)
 plant_classes = list(plant_class_labels.values())
-print("✅ Plant model loaded!")
+print("Plant model loaded!")
 
 # ── Load Animal Models ────────────────────────────────────────
 animal_model    = tf.keras.models.load_model('animal_EfficientNetV2S_finetuned_final.keras')
@@ -30,7 +30,7 @@ with open('OryxEye_base_prototypes.pkl', 'rb') as f:
 with open('OryxEye_cartoon_prototypes.pkl', 'rb') as f:
     cartoon_prototypes = pickle.load(f)
 
-print("✅ Animal models loaded!")
+print("Animal models loaded!")
 
 # ── Helper: preprocess image ──────────────────────────────────
 def preprocess(file_bytes, size=224):
@@ -41,7 +41,6 @@ def preprocess(file_bytes, size=224):
 def is_cartoon(img_array):
     img = img_array[0].astype(np.uint8)
     pil_img = Image.fromarray(img)
-    # Count unique colors — cartoons have fewer unique colors
     unique_colors = len(set(pil_img.getdata()))
     return unique_colors < 50000
 
@@ -56,9 +55,14 @@ def predict_animal_fewshot(img_array):
         feat    = features.flatten()
         similarity = np.dot(feat, proto) / (np.linalg.norm(feat) * np.linalg.norm(proto) + 1e-8)
         scores[cls] = float(similarity)
-    top3  = sorted(scores, key=scores.get, reverse=True)[:3]
-    total = sum(scores[c] for c in top3)
-    return [{"name": c.capitalize(), "confidence": round(scores[c] / total * 100, 1)} for c in top3]
+    # Softmax over ALL classes for meaningful confidence scores
+    all_names  = list(scores.keys())
+    all_scores = np.array(list(scores.values()))
+    exp_scores = np.exp(all_scores - all_scores.max())
+    softmax    = exp_scores / exp_scores.sum()
+
+    top3_idx = np.argsort(softmax)[::-1][:3]
+    return [{"name": all_names[i].capitalize(), "confidence": round(float(softmax[i]) * 100, 1)} for i in top3_idx]
 
 # ── Helper: standard animal prediction ───────────────────────
 def predict_animal_standard(img_array):
@@ -84,7 +88,6 @@ def classify_animal():
         return jsonify({'error': 'No image provided'}), 400
     file_bytes = request.files['image'].read()
     img_array  = preprocess(file_bytes, size=384)
-    # Use few-shot for cartoons, standard for real photos
     if is_cartoon(img_array):
         results = predict_animal_fewshot(img_array)
     else:
@@ -111,10 +114,24 @@ def classify():
         return jsonify({"type": "plant", "results": plant_results})
 
     # Plant not confident — try animal
-    if is_cartoon(img_224):
+    cartoon = is_cartoon(img_224)
+    if cartoon:
         animal_results = predict_animal_fewshot(img_384)
     else:
         animal_results = predict_animal_standard(img_384)
+
+    # If animal confidence is also low → unknown
+    # Different thresholds: few-shot scores are tighter (normalized top-3)
+    print(f"Top animal: {animal_results[0]['name']} — {animal_results[0]['confidence']}%")
+    print(f"Plant conf: {plant_conf}%")
+    min_confidence = 38.0 if cartoon else 35.0
+
+    if animal_results[0]["confidence"] < min_confidence:
+        return jsonify({
+            "type": "unknown",
+            "message": "Hmm, I'm not sure what this is! Try uploading a clearer photo of a plant or animal 🌿🐾"
+        })
+
     return jsonify({"type": "animal", "results": animal_results})
 
 # ── Health check ──────────────────────────────────────────────
