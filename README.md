@@ -1,47 +1,80 @@
 # ORYXEYE — Nature Explorer for Kids
 
-An AI-powered web app where kids upload photos of animals and plants, learn about them, chat with an AI nature guide, and play quizzes.
-
-Built with **React + Node.js + Groq AI + NLP**
+An AI-powered educational web app where children upload photos of animals and plants, learn about them through an AI nature guide, play quizzes, and track their discoveries.
+**Tech Stack:** React · Node.js · Python · Flask · Groq AI · TensorFlow · NLP (natural)
 
 ---
 
-##  Requirements
+## Team
+
+**Submitted by:**
+- Amina Baziz — 60300593
+- Maryam Mahaboob — 60301005
+- Umm Kulsoom — 60301986
+
+---
+
+## Quick Install
+
+A convenience script is included to install all dependencies at once. Simply double-click `install.bat` in the root folder, or run it from a terminal:
+
+```
+install.bat
+```
+
+This will install all Node.js and Python packages automatically. After it finishes, skip to the [How to Run](#how-to-run) section.
+
+> If you prefer to install manually, follow the steps below.
+
+---
+
+## Requirements
 
 Before you start, make sure you have these installed on your computer.
 
 ### 1. Node.js (v18 or higher)
 Download from: https://nodejs.org  
 To check if you already have it:
-```bash
+```
 node --version
 ```
 
 ### 2. Python (3.9 or higher)
 Download from: https://python.org  
+Python is required to run the AI classification models (plant and animal) through a local Flask API.  
 To check if you already have it:
-```bash
+```
 python --version
 ```
 
 ### 3. Install server packages
 Open a terminal, go into the server folder, and run:
-```bash
+```
 cd server
 npm install express cors dotenv natural
 ```
 This installs:
-- `express` — the web server framework
-- `cors` — allows the frontend to talk to the backend
-- `dotenv` — loads your secret API key from the `.env` file
-- `natural` — NLP library used for the Guess game (tokenizer, stemmer, TF-IDF)
+- **express** — the web server framework
+- **cors** — allows the frontend to talk to the backend
+- **dotenv** — loads your secret API key from the `.env` file
+- **natural** — NLP library used for the Guess game (tokenizer, stemmer, TF-IDF)
 
 ### 4. Install frontend packages
-```bash
+```
 cd frontend
 npm install
 ```
 This installs React and everything the frontend needs (all listed in `package.json`).
+
+### 5. Install Python dependencies
+```
+cd ml_models
+pip install flask tensorflow pillow numpy
+```
+This installs:
+- **flask** — serves the classification models as a local API
+- **tensorflow** — runs the EfficientNetV2S plant and animal models
+- **pillow / numpy** — image processing utilities
 
 ---
 
@@ -49,24 +82,23 @@ This installs React and everything the frontend needs (all listed in `package.js
 
 The app uses Groq to power the AI chatbot, daily challenges, guess game, and quizzes. It is completely free — no credit card needed.
 
-### Step 1 — Sign up
-Go to: **https://console.groq.com**  
-Click **Sign Up** and create a free account.
+**Step 1 — Sign up**  
+Go to: https://console.groq.com  
+Click Sign Up and create a free account.
 
-### Step 2 — Create an API key
+**Step 2 — Create an API key**
 1. Log in to your Groq account
-2. Click **"API Keys"** in the left sidebar
-3. Click **"Create API Key"**
+2. Click "API Keys" in the left sidebar
+3. Click "Create API Key"
 4. Give it any name (e.g. `oryxeye`)
 5. Copy the key — it looks like: `gsk_xxxxxxxxxxxxxxxxxxxx`
 
-### Step 3 — Add the key to the project
+**Step 3 — Add the key to the project**  
 Inside the `server/` folder, create a new file called `.env`:
 ```
 GROQ_API_KEY=gsk_your_key_here
 ```
-
-> this file must NEVER be pushed to GitHub.  
+> ⚠️ This file must **NEVER** be pushed to GitHub.  
 > Make sure your `server/.gitignore` file contains:
 > ```
 > .env
@@ -75,53 +107,64 @@ GROQ_API_KEY=gsk_your_key_here
 
 ---
 
-##  How to Run
+## How to Run
 
-You need **two terminals open at the same time** — one for the server and one for the frontend.
+You need **three terminals** open at the same time.
 
-### Terminal 1 — Start the Server
+### Terminal 1 — Start the ML Models (Flask API)
+```
+cd ml_models
+python app.py
+```
+You should see:
+```
+Flask model server running on http://localhost:5001
+```
+This serves both the plant classification model (39 classes, EfficientNetV2S) and the animal classification model.
 
-```bash
+### Terminal 2 — Start the Node.js Server
+```
 cd server
 node server.js
 ```
-
-If everything is working you will see:
+You should see:
 ```
- ORYXEYE server running on http://localhost:4000
+ORYXEYE server running on http://localhost:4000
 ```
+If you see an error about the API key, double check your `.env` file is saved correctly inside the `server/` folder.
 
-> If you see an error about the API key, double check your `.env` file is saved correctly inside the `server/` folder.
-
-### Terminal 2 — Start the Frontend
-
-```bash
+### Terminal 3 — Start the Frontend
+```
 cd frontend
 npm start
 ```
-
 This will automatically open the app in your browser at:  
 **http://localhost:3000**
 
->  The server (Terminal 1) must be running at all times while using the app. Do not close it.
+> All three terminals must stay running while using the app.
 
 ---
 
-##  Important Files — What Each One Does
+## Important Files — What Each One Does
 
-### Server files (`server/`)
-
+### ML Model files (ml_models/)
 | File | What it does |
-|------|-------------|
-| `server.js` | The main backend file. Contains all API endpoints — chat, daily challenge, guess game, NLP checker, quiz generation, user auth, and progress tracking. If something on the backend is broken, this is the file to check. |
+|------|--------------|
+| `app.py` | Flask API server running on port 5001. Accepts image uploads and returns classification predictions for both plants and animals. |
+| `plant_model.h5` | Trained EfficientNetV2S model for plant classification — 39 classes, ~92.67% validation accuracy. |
+| `animal_model.h5` | Trained model for animal classification. |
+
+### Server files (server/)
+| File | What it does |
+|------|--------------|
+| `server.js` | The main backend file. Contains all API endpoints — chat, daily challenge, guess game, NLP checker, quiz generation, user auth, and progress tracking. |
 | `.env` | Stores your secret Groq API key. Never share or push this file. |
 | `.env.example` | A safe template showing what `.env` should look like. This one CAN be pushed to GitHub. |
 | `.gitignore` | Tells Git which files to ignore. Must include `.env` and `node_modules/`. |
 
-### Frontend files (`frontend/src/`)
-
+### Frontend files (frontend/src/)
 | File | What it does |
-|------|-------------|
+|------|--------------|
 | `App.js` | The main app file. Handles routing between pages, login, signup, logout, and shared state like progress data. |
 | `App.css` | All the visual styling for the entire app — colors, fonts, layouts, animations. |
 | `components/Toast.jsx` | The small notification popup that appears at the top (e.g. "Welcome back!"). |
@@ -134,5 +177,3 @@ This will automatically open the app in your browser at:
 | `pages/GuessPage.jsx` | The Guess the Nature game — shows clues, accepts guesses using NLP matching. |
 | `pages/JournalPage.jsx` | Shows all the species the user has discovered and completed quizzes for. |
 | `pages/DashboardPage.jsx` | Shows progress stats — total discoveries, quiz accuracy, streak, badges. |
-
----
