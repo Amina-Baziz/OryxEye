@@ -13,7 +13,7 @@ Built for DSAI4201 - using EfficientNetV2S fine-tuned on 90 animal classes (94.4
 
 ## Features
 - Animal & plant photo identification (real + cartoon)
-- Ask Oryx — AI nature chatbot (Groq LLaMA 3.3 70B)
+- Ask Oryx - AI nature chatbot (Groq LLaMA 3.3 70B)
 - Daily nature challenges with quizzes
 - Guess the Nature game (NLP matching)
 - Personal discovery journal
@@ -22,9 +22,9 @@ Built for DSAI4201 - using EfficientNetV2S fine-tuned on 90 animal classes (94.4
 ## Team
 
 **Submitted by:**
-- Amina Baziz — 60300593
-- Maryam Mahaboob — 60301005
-- Umm Kulsoom — 60301986
+- Amina Baziz - 60300593
+- Maryam Mahaboob - 60301005
+- Umm Kulsoom - 60301986
 
 ---
 
@@ -105,17 +105,17 @@ cd CNN
 pip install flask tensorflow pillow numpy
 ```
 This installs:
-- **flask** — serves the classification models as a local API
-- **tensorflow** — runs the EfficientNetV2S plant and animal models
-- **pillow / numpy** — image processing utilities
+- **flask** - serves the classification models as a local API
+- **tensorflow** - runs the EfficientNetV2S plant and animal models
+- **pillow / numpy** - image processing utilities
 
 ---
 
 ## Get Your Groq API Key (Free)
 
-The app uses Groq to power the AI chatbot, daily challenges, guess game, and quizzes. It is completely free — no credit card needed.
+The app uses Groq to power the AI chatbot, daily challenges, guess game, and quizzes. It is completely free - no credit card needed.
 
-**Step 1 — Sign up**  
+**Step 1 - Sign up**  
 Go to: https://console.groq.com  
 Click Sign Up and create a free account.
 
