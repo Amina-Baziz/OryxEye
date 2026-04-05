@@ -5,7 +5,20 @@ An AI-powered educational web app where children upload photos of animals and pl
 **Tech Stack:** React · Node.js · Python · Flask · Groq AI · TensorFlow · MongoDB Atlas · NLP (natural)
 
 ---
+## About OryxEye
 
+OryxEye is an AI-powered nature explorer for kids aged 6–12. Children upload photos of animals or plants, get instant AI identification, learn through a chatbot, play quizzes, and track their discoveries in a personal journal. Each identified species comes with fun facts and an interactive quiz, helping children learn about the animal or plant they discovered in an engaging and age-appropriate way.
+
+Built for DSAI4201 - using EfficientNetV2S fine-tuned on 90 animal classes (94.45% accuracy) and 39 plant classes (92.67% accuracy), with few-shot learning for cartoon domain adaptation.
+
+## Features
+- Animal & plant photo identification (real + cartoon)
+- Ask Oryx — AI nature chatbot (Groq LLaMA 3.3 70B)
+- Daily nature challenges with quizzes
+- Guess the Nature game (NLP matching)
+- Personal discovery journal
+- Progress tracking & badges
+---
 ## Team
 
 **Submitted by:**
